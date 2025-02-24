@@ -7,10 +7,9 @@ import { Ticket } from '@/type'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 
-const page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
-
+const Page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
     const { user } = useUser()
     const email = user?.primaryEmailAddress?.emailAddress
     const [idPoste, setIdPoste] = useState<string | null>(null)
@@ -18,7 +17,7 @@ const page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
     const [namePoste, setNamePoste] = useState<string | null>(null)
     const router = useRouter()
 
-    const getData = async () => {
+    const getData = useCallback(async () => {
         try {
             if (email) {
                 const resolvedParams = await params;
@@ -32,16 +31,15 @@ const page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
                 if (postName) {
                     setNamePoste(postName)
                 }
-
             }
         } catch (error) {
             console.error(error)
         }
-    }
+    }, [email, params])
 
     useEffect(() => {
         getData()
-    }, [email, params])
+    }, [email, params, getData])
 
     const handleStatusChange = async (newStatus: string) => {
         if (ticket) {
@@ -52,7 +50,6 @@ const page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
                 } else {
                     getData()
                 }
-
             } catch (error) {
                 console.error(error)
             }
@@ -61,14 +58,12 @@ const page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
 
     return (
         <Wrapper>
-
             <div className='mb-4'>
                 <h1 className="text-2xl font-bold"> <span>Poste</span> <span className='badge badge-accent'>{namePoste ?? "aucun poste"}</span></h1>
                 <Link className='btn mt-4 btn-sm' href={`/poste/${idPoste}`}>Retour</Link>
             </div>
             {ticket ? (
                 <div>
-
                     <TicketComponent
                         ticket={ticket}
                     />
@@ -99,10 +94,9 @@ const page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
                         IconComponent='UserSearch'
                     />
                 </div>
-
             )}
         </Wrapper>
     )
 }
 
-export default page
+export default Page

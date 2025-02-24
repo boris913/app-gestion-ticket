@@ -7,6 +7,8 @@ import { Ticket } from '@/type'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import React, { useEffect, useState, useCallback } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faClock, faPhone } from '@fortawesome/free-solid-svg-icons'
 
 const Page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
   const { user } = useUser()
@@ -67,37 +69,33 @@ const Page = ({ params }: { params: Promise<{ idPoste: string }> }) => {
 
   return (
     <Wrapper>
-      <div className="flex justify-between mb-4">
-        <h1 className="text-2xl font-bold"> <span>Poste</span> <span className='badge badge-accent'>{namePoste ?? "aucun poste"}</span></h1>
-        <div className="flex items-center">
-          <span className="relative flex size-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/30 opacity-75"></span>
-            <span className="relative inline-flex size-3 rounded-full bg-accent"></span>
-          </span>
-          <div className="ml-2">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center">
+          <span>Poste</span>
+          <span className="ml-2 badge badge-accent text-lg">{namePoste ?? "aucun poste"}</span>
+        </h1>
+        <div className="flex items-center space-x-4">
+          <div className="relative flex items-center justify-center w-8 h-8">
+            <div className="absolute inline-flex w-full h-full rounded-full bg-accent opacity-30 animate-ping"></div>
+            <div className="relative inline-flex w-3 h-3 rounded-full bg-accent"></div>
+          </div>
+          <div className="text-gray-600 dark:text-gray-300 text-lg flex items-center">
+            <FontAwesomeIcon icon={faClock} className="mr-1 w-5 h-5" />
             ({countdown}s)
           </div>
-          <Link href={`/call/${idPoste}`}
-            className={`btn btn-sm ml-4 ${!namePoste && " btn-disabled"}`}
-          >
+          <Link href={`/call/${idPoste}`} className={`btn btn-sm btn-primary flex items-center ${!namePoste && "btn-disabled"}`}>
+            <FontAwesomeIcon icon={faPhone} className="mr-1 w-5 h-5" />
             Appeler le suivant
           </Link>
         </div>
       </div>
 
       {tickets.length === 0 ? (
-        <div>
-          <EmptyState
-            message={'Aucun ticket en attente'}
-            IconComponent='Bird'
-          />
-        </div>
+        <EmptyState message="Aucun ticket en attente" IconComponent="Bird" />
       ) : (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-6">
           {tickets.map((ticket, index) => {
-            const totalWaitTime = tickets
-              .slice(0, index)
-              .reduce((acc, prevTicket) => acc + prevTicket.avgTime, 0)
+            const totalWaitTime = tickets.slice(0, index).reduce((acc, prevTicket) => acc + prevTicket.avgTime, 0)
 
             return (
               <TicketComponent

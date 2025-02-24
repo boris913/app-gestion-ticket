@@ -1,7 +1,6 @@
 "use server"
 
 import prisma from "@/lib/prisma"
-import { stat } from "node:fs/promises"
 
 export async function checkAndAddUser(email: string, name: string) {
     if (!email) return
@@ -54,7 +53,6 @@ export async function createService(email: string, serviceName: string, avgTime:
 export async function getServicesByEmail(email: string) {
     if (!email) return
     try {
-
         const company = await prisma.company.findUnique({
             where: {
                 email: email
@@ -80,10 +78,6 @@ export async function getServicesByEmail(email: string) {
 export async function deleteServiceById(serviceId: string) {
     if (!serviceId) return
     try {
-        const service = await prisma.service.findUnique({
-            where: { id: serviceId }
-        })
-
         await prisma.service.delete({
             where: { id: serviceId }
         })
@@ -129,8 +123,10 @@ export async function setCompanyPageName(email: string, pageName: string) {
 
 }
 
-export async function getServicesByPageName(pageName: string) {
+export async function getServicesByPageName(encodedPageName: string) {
     try {
+        const pageName = decodeURIComponent(encodedPageName);
+        console.log(`Recherche de l'entreprise avec le nom de page : ${pageName}`);
         const company = await prisma.company.findUnique({
             where: {
                 pageName: pageName
@@ -156,14 +152,15 @@ export async function getServicesByPageName(pageName: string) {
 
 export async function createTicket(serviceId: string, nameComplete: string, pageName: string) {
     try {
+        const decodedPageName = decodeURIComponent(pageName);
         const company = await prisma.company.findUnique({
             where: {
-                pageName: pageName
+                pageName: decodedPageName
             }
         })
 
         if (!company) {
-            throw new Error(`Aucune entreprise trouvée avec le nom de page : ${pageName}`);
+            throw new Error(`Aucune entreprise trouvée avec le nom de page : ${decodedPageName}`);
         }
 
         //A05 ? A08 A785C55 
@@ -345,6 +342,7 @@ export async function getPostNameById(postId: string) {
 
 export async function getLastTicketByEmail(email: string, idPoste: string) {
     try {
+        // Recherche du dernier ticket en cours de traitement pour le poste spécifié
         const existingTicket = await prisma.ticket.findFirst({
             where: {
                 postId: idPoste,
@@ -352,37 +350,38 @@ export async function getLastTicketByEmail(email: string, idPoste: string) {
             },
             orderBy: { createdAt: "desc" },
             include: { service: true, post: true }
-        })
+        });
 
         if (existingTicket && existingTicket.service) {
             return {
                 ...existingTicket,
                 serviceName: existingTicket.service.name,
                 avgTime: existingTicket.service.avgTime
-            }
-
+            };
         }
 
+        // Recherche du premier ticket en attente pour l'entreprise associée à l'email fourni
         const ticket = await prisma.ticket.findFirst({
             where: {
                 status: "PENDING",
                 service: { company: { email: email } }
             },
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: "asc" }, // Tri par date de création croissante pour obtenir le ticket le plus ancien
             include: { service: true, post: true }
-        })
+        });
 
-        if (!ticket || !ticket?.service) return null
+        if (!ticket || !ticket?.service) return null;
 
         const post = await prisma.post.findUnique({
             where: { id: idPoste }
-        })
+        });
 
         if (!post) {
             console.error(`Aucun poste trouvé pour l'ID: ${idPoste}`);
             return null;
         }
 
+        // Mise à jour du statut du ticket à "CALL" et association au poste spécifié
         const updatedTicket = await prisma.ticket.update({
             where: { id: ticket.id },
             data: {
@@ -391,16 +390,16 @@ export async function getLastTicketByEmail(email: string, idPoste: string) {
                 postName: post.name
             },
             include: { service: true }
-        })
+        });
 
         return {
             ...updatedTicket,
             serviceName: updatedTicket.service.name,
             avgTime: updatedTicket.service.avgTime
-        }
+        };
 
     } catch (error) {
-        console.error(error)
+        console.error(error);
     }
 }
 
@@ -460,5 +459,129 @@ export async function getTicketStatsByEmail(email: string) {
             resolvedTickets: 0,
             pendingTickets: 0
         }
+    }
+}
+
+export async function getPosteStatsByEmail(email: string) {
+    try {
+        const company = await prisma.company.findUnique({
+            where: {
+                email: email
+            }
+        })
+
+        if (!company) {
+            throw new Error(`Aucune entreprise trouvée avec cet email`);
+        }
+
+        const posts = await prisma.post.findMany({
+            where: {
+                companyId: company.id
+            }
+        })
+
+        const totalPostes = posts.length
+        const activePostes = posts.filter(post => post.isActive).length
+
+        return {
+            totalPostes,
+            activePostes
+        }
+    } catch (error) {
+        console.error(error)
+        return {
+            totalPostes: 0,
+            activePostes: 0
+        }
+    }
+}
+
+export async function getServiceStatsByEmail(email: string) {
+    try {
+        const company = await prisma.company.findUnique({
+            where: {
+                email: email
+            }
+        })
+
+        if (!company) {
+            throw new Error(`Aucune entreprise trouvée avec cet email`);
+        }
+
+        const services = await prisma.service.findMany({
+            where: {
+                companyId: company.id
+            }
+        })
+
+        const totalServices = services.length
+        const activeServices = services.filter(service => service.isActive).length
+
+        return {
+            totalServices,
+            activeServices
+        }
+    } catch (error) {
+        console.error(error)
+        return {
+            totalServices: 0,
+            activeServices: 0
+        }
+    }
+}
+
+export async function getResolvedTicketsByPoste(email: string) {
+    try {
+        const company = await prisma.company.findUnique({
+            where: { email },
+            include: {
+                posts: {
+                    include: {
+                        tickets: {
+                            where: { status: "FINISHED" }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!company) throw new Error('Aucune entreprise trouvée avec cet email');
+
+        const resolvedTicketsByPoste = company.posts.reduce((acc, post) => {
+            acc[post.name] = post.tickets.length;
+            return acc;
+        }, {});
+
+        return resolvedTicketsByPoste;
+    } catch (error) {
+        console.error(error);
+        return {};
+    }
+}
+
+export async function getTicketsByService(email: string) {
+    try {
+        const company = await prisma.company.findUnique({
+            where: { email },
+            include: {
+                services: {
+                    include: {
+                        tickets: true
+                    }
+                }
+            }
+        });
+
+        if (!company) throw new Error('Aucune entreprise trouvée avec cet email');
+
+        const ticketsByService = company.services.reduce((acc, service) => {
+            acc[service.name] = service.tickets.length;
+            return acc;
+        }, {});
+
+        return ticketsByService;
+    } catch (error) {
+        console.error(error);
+        return {};
     }
 }
